@@ -98,6 +98,7 @@ const OUTLINE_STYLE = {
   },
   selected: {
     color: Cesium?.Color?.WHITE ?? "#ffffff",
+    widthBoost: 1.35,
   },
 };
 function getScenarioLabel(source, scenario) {
@@ -430,7 +431,7 @@ async function initCesium() {
         outlineColor: Cesium.Color.fromCssColorString("#02101c"),
         outlineWidth: 4,
         showBackground: false,
-        font: "18px Microsoft JhengHei, Noto Sans TC, sans-serif",
+        font: "700 26px Microsoft JhengHei, Noto Sans TC, sans-serif",
         style: Cesium.LabelStyle.FILL_AND_OUTLINE,
         pixelOffset: new Cesium.Cartesian2(0, -18),
         verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
@@ -790,8 +791,11 @@ function syncOutlineStyles() {
   state.townOutlineDataSource?.entities?.values?.forEach((entity) => {
     const code = entity.properties?.code?.getValue?.();
     if (!entity.polyline) return;
-    entity.polyline.width = townWidth;
-    entity.polyline.material = code && code === state.selectedCode
+    const isSelected = code && code === state.selectedCode;
+    entity.polyline.width = isSelected
+      ? townWidth + OUTLINE_STYLE.selected.widthBoost
+      : townWidth;
+    entity.polyline.material = isSelected
       ? OUTLINE_STYLE.selected.color
       : Cesium.Color.fromCssColorString(OUTLINE_STYLE.town.color);
   });
