@@ -5,6 +5,7 @@ const BING_MAPS_KEY = window.BING_MAPS_KEY || "YOUR_BING_MAPS_KEY";
 const DEFAULT_TREND_TYPE = "exponential";
 const DEFAULT_SAMPLE_WINDOW = "5y_2021_2025";
 const DEFAULT_SCENARIO_KEY = "taiwan|中推估";
+const DEFAULT_PALETTE_KEY = "rainbow";
 const YEAR_PLAY_INTERVAL_MS = 900;
 const TOPO_TOWN_CODES = [
   "63000", "64000", "65000", "66000", "67000", "68000",
@@ -22,6 +23,7 @@ const state = {
   regionTransforms: null,
   selectedCode: null,
   selectedScenarioKey: DEFAULT_SCENARIO_KEY,
+  selectedPaletteKey: DEFAULT_PALETTE_KEY,
   year: "2025",
   years: [],
   playTimer: null,
@@ -39,6 +41,7 @@ const state = {
 
 const els = {
   scenarioSelect: document.getElementById("scenarioSelect"),
+  paletteSelect: document.getElementById("paletteSelect"),
   playYearsBtn: document.getElementById("playYearsBtn"),
   stopYearsBtn: document.getElementById("stopYearsBtn"),
   yearRange: document.getElementById("yearRange"),
@@ -99,6 +102,42 @@ const OUTLINE_STYLE = {
   selected: {
     color: Cesium?.Color?.WHITE ?? "#ffffff",
     widthBoost: 1.35,
+  },
+};
+const COLOR_PALETTES = {
+  rainbow: {
+    gradient: "linear-gradient(90deg, #f4fbff 0%, #46b5ff 18%, #19d42b 38%, #fff04a 58%, #ff9a2f 74%, #e42020 88%, #d420ff 100%)",
+    stops: [
+      [244, 251, 255],
+      [70, 181, 255],
+      [25, 212, 43],
+      [255, 240, 74],
+      [255, 154, 47],
+      [228, 32, 32],
+      [212, 32, 255],
+    ],
+  },
+  red: {
+    gradient: "linear-gradient(90deg, #ffffff 0%, #ffd8d8 20%, #ffadad 40%, #ff7b7b 62%, #f24343 80%, #b10000 100%)",
+    stops: [
+      [255, 255, 255],
+      [255, 216, 216],
+      [255, 173, 173],
+      [255, 123, 123],
+      [242, 67, 67],
+      [177, 0, 0],
+    ],
+  },
+  blue: {
+    gradient: "linear-gradient(90deg, #ffffff 0%, #dceeff 20%, #add6ff 40%, #74b8ff 62%, #3f8dff 80%, #0f4fbf 100%)",
+    stops: [
+      [255, 255, 255],
+      [220, 238, 255],
+      [173, 214, 255],
+      [116, 184, 255],
+      [63, 141, 255],
+      [15, 79, 191],
+    ],
   },
 };
 function getScenarioLabel(source, scenario) {
@@ -323,6 +362,11 @@ function setupControls() {
 
   els.scenarioSelect.addEventListener("change", () => {
     updateScenarioState(els.scenarioSelect.value);
+  });
+  els.paletteSelect.value = state.selectedPaletteKey;
+  els.paletteSelect.addEventListener("change", () => {
+    state.selectedPaletteKey = els.paletteSelect.value;
+    updateVisuals();
   });
 
   els.playYearsBtn.addEventListener("click", startPlayback);
@@ -754,8 +798,9 @@ function getLegendScopeLabel() {
 }
 
 function renderLegend(range, scopeLabel) {
+  const palette = getActivePalette();
   els.legend.innerHTML = `
-    <div class="legend-ramp" style="background:linear-gradient(90deg, #f4fbff 0%, #46b5ff 18%, #19d42b 38%, #fff04a 58%, #ff9a2f 74%, #e42020 88%, #d420ff 100%)"></div>
+    <div class="legend-ramp" style="background:${palette.gradient}"></div>
     <div class="legend-range">
       <span>${Math.round(range.min).toLocaleString()} 人</span>
       <span>${Math.round(range.max).toLocaleString()} 人</span>
@@ -948,18 +993,11 @@ function renderBarChart(years, values) {
 
 function interpolateSequential(value, min, max) {
   const t = clamp((value - min) / (max - min || 1), 0, 1);
-  return interpolateStops(
-    [
-      [244, 251, 255],
-      [70, 181, 255],
-      [25, 212, 43],
-      [255, 240, 74],
-      [255, 154, 47],
-      [228, 32, 32],
-      [212, 32, 255],
-    ],
-    Math.pow(t, 0.92),
-  );
+  return interpolateStops(getActivePalette().stops, Math.pow(t, 0.92));
+}
+
+function getActivePalette() {
+  return COLOR_PALETTES[state.selectedPaletteKey] ?? COLOR_PALETTES[DEFAULT_PALETTE_KEY];
 }
 
 function interpolateStops(stops, t) {
