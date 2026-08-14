@@ -213,6 +213,11 @@ function getCurrentScenarioLabel() {
 }
 
 function updateMapTitle() {
+  const selectedTown = getSelectedTown();
+  if (selectedTown) {
+    els.mapTitle.textContent = `${selectedTown.county}${selectedTown.town}人口變化`;
+    return;
+  }
   const countyLabel = getSelectedCountyLabel();
   const scopeLabel = countyLabel ? countyLabel : "台灣鄉鎮區";
   els.mapTitle.textContent = `${scopeLabel}未來人口空間分布`;
