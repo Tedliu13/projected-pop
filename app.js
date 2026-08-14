@@ -839,10 +839,10 @@ function updateChart() {
   });
 
   const title = selectedTown
-    ? `${selectedTown.county}${selectedTown.town}未來人口推估(人)`
+    ? `${selectedTown.county}${selectedTown.town}未來人口推估`
     : selectedCountyLabel
-      ? `${selectedCountyLabel}未來人口推估(人)`
-    : "全台未來人口推估(人)";
+      ? `${selectedCountyLabel}未來人口推估`
+    : "全台未來人口推估";
 
   els.chartTitle.textContent = title;
   renderBarChart(years, values);
