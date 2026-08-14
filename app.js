@@ -801,6 +801,8 @@ function updateMap() {
       entity.polygon.material = material;
     });
   });
+
+  syncSelectedTownLabel();
 }
 
 function getLegendScopeLabel() {
@@ -905,8 +907,9 @@ function syncSelectedTownLabel(zoomT = getZoomInterpolation()) {
   label.show = shouldShow;
   if (!shouldShow) return;
 
+  const value = getCurrentPopulationMap()?.[getProjectionIndex(selectedTown.code)] ?? 0;
   state.selectedTownLabelEntity.position = Cesium.Cartesian3.fromDegrees(center.lon, center.lat);
-  label.text = selectedTown.town;
+  label.text = `${selectedTown.town}\n${state.year}年，${Math.round(value).toLocaleString()}人`;
 }
 
 function updateChart() {
