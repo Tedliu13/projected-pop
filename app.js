@@ -164,6 +164,20 @@ function getSelectedCountyLabel() {
   return town?.county ?? getCountyLabelByCode(state.selectedCountyCode);
 }
 
+function getCurrentScenarioLabel() {
+  const selectedOption = els.scenarioSelect.selectedOptions?.[0];
+  if (selectedOption?.textContent) return selectedOption.textContent.trim();
+  const { source, scenario } = parseScenarioKey(state.selectedScenarioKey);
+  return getScenarioLabel(source, scenario);
+}
+
+function updateMapTitle() {
+  const countyLabel = getSelectedCountyLabel();
+  const scopeLabel = countyLabel ? countyLabel : "台灣鄉鎮區";
+  const scenarioLabel = getCurrentScenarioLabel();
+  els.mapTitle.textContent = `${scopeLabel}未來人口空間分布-${scenarioLabel}情境推估`;
+}
+
 async function loadJson(url) {
   const response = await fetch(url);
   if (!response.ok) {
@@ -711,6 +725,7 @@ function updateVisuals() {
 function updateMap() {
   const populationValues = getCurrentPopulationMap();
   const range = getPopulationRange();
+  updateMapTitle();
   renderLegend(range, getLegendScopeLabel());
 
   state.geometry.towns.forEach((town) => {
