@@ -1,0 +1,29 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+Desktop.ini
+.vscode/
+.idea/
+
+# Logs / temp
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+
+# Python / Node caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+node_modules/
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Generated / source GIS files not needed for site runtime
+shapefile/

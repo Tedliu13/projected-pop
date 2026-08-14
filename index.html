@@ -3,104 +3,67 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Population</title>
+  <title>台灣鄉鎮區未來人口變化</title>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.142/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
   <div class="app-shell">
-    <main class="main-grid">
-      <section class="chart-panel">
-        <header class="side-header">
-          <div>
-            <h1>台灣鄉鎮人口推估查詢</h1>
-            <p>2025 為基期，支援線性與指數占比法、5/10/18 年樣本，以及 IPCC / 台灣總人口情境。</p>
-          </div>
-        </header>
+    <main class="dashboard-grid">
+      <section class="panel map-panel">
+        <div class="panel-header">
+          <h2 id="mapTitle">台灣鄉鎮區未來人口變化</h2>
+          <div id="legend" class="legend"></div>
+        </div>
+        <div id="mapStage" class="map-stage">
+          <div id="mapSceneContainer" class="map-scene-container" aria-label="Cesium map"></div>
+          <svg id="mapSvg" class="map-overlay map-overlay-hidden" aria-label="Taiwan township overlay">
+            <g id="mapViewport">
+              <g id="townLayer"></g>
+              <g id="countyLayer"></g>
+              <g id="insetLayer"></g>
+            </g>
+          </svg>
+          <div id="tooltip" class="tooltip hidden"></div>
+          <div id="mapTokenNotice" class="map-token-notice hidden"></div>
+        </div>
+      </section>
 
-        <section class="controls side-controls">
-          <label>
-            <span>趨勢推估類型</span>
-            <select id="trendTypeSelect">
-              <option value="linear">線性</option>
-              <option value="exponential">指數</option>
-            </select>
-          </label>
-          <label>
-            <span>地圖選擇</span>
-            <select id="mapMetricSelect">
-              <option value="shareTrend">平均人口占比變化量</option>
-              <option value="population">人口數</option>
-              <option value="changeFrom2025">相對2025年人口改變量</option>
-            </select>
-          </label>
-          <label>
-            <span>樣本年數</span>
-            <select id="sampleWindowSelect">
-              <option value="5y_2021_2025">5 年</option>
-              <option value="10y_2016_2025">10 年</option>
-              <option value="18y_2008_2025">18 年</option>
-            </select>
-          </label>
-          <label class="scenario-group">
-            <span>情境</span>
-            <div id="scenarioChecklist" class="scenario-checklist"></div>
-          </label>
-        </section>
-
+      <section class="panel chart-panel">
         <div class="panel-header chart-header">
-          <div>
-            <h2 id="chartTitle">全台</h2>
-            <p id="chartSubtitle">左圖顯示 2025 年起的人口推估曲線；點選某年資料點可同步右圖人口數地圖。</p>
-          </div>
-          <div class="chart-actions">
-            <button id="downloadCsvBtn" type="button" disabled>下載 CSV</button>
-          </div>
+          <h2 id="chartTitle">全台未來人口推估(人)</h2>
         </div>
         <div class="chart-wrapper">
           <svg id="chartSvg" class="chart-svg" aria-label="Population projection chart"></svg>
         </div>
         <div id="townSummary" class="town-summary"></div>
       </section>
-
-      <section class="map-panel">
-        <div class="panel-header">
-          <div>
-            <h2 id="mapTitle">地圖</h2>
-            <div class="map-toolbar-row">
-              <div class="map-scenario-row">
-                <span>地圖情境</span>
-                <select id="mapScenarioSelect"></select>
-              </div>
-              <div class="map-year-row">
-                <span>年份</span>
-                <button id="playYearsBtn" type="button" class="play-years-btn">播放</button>
-                <input id="yearRange" type="range" min="0" max="0" step="1" value="0">
-                <span id="yearValue" class="year-value">2025</span>
-              </div>
-            </div>
-          </div>
-          <div id="legend" class="legend"></div>
-        </div>
-        <div class="map-tools">
-          <button id="resetViewBtn" type="button">重設地圖</button>
-          <button id="zoomInBtn" type="button">+</button>
-          <button id="zoomOutBtn" type="button">-</button>
-        </div>
-        <div id="mapContainer" class="map-container">
-          <svg id="mapSvg" class="map-svg" aria-label="Taiwan township map">
-            <g id="mapViewport">
-              <g id="townLayer"></g>
-              <g id="countyLayer"></g>
-              <g id="insetLayer"></g>
-              <g id="labelLayer"></g>
-            </g>
-          </svg>
-          <div id="tooltip" class="tooltip hidden"></div>
-        </div>
-      </section>
     </main>
+
+    <section class="control-panel">
+      <label class="control-block">
+        <span>情境</span>
+        <select id="scenarioSelect"></select>
+      </label>
+      <div class="control-block playback-block">
+        <span>播放控制</span>
+        <div class="playback-actions">
+          <button id="playYearsBtn" type="button">播放</button>
+          <button id="stopYearsBtn" type="button">停止</button>
+        </div>
+      </div>
+      <div class="control-block timeline-block">
+        <div class="timeline-heading">
+          <span>年份</span>
+          <strong id="yearValue">2025</strong>
+        </div>
+        <input id="yearRange" type="range" min="0" max="0" step="1" value="0">
+        <div id="yearTicks" class="year-ticks"></div>
+      </div>
+    </section>
   </div>
 
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.142/Build/Cesium/Cesium.js"></script>
   <script src="./app.js" type="module"></script>
 </body>
 </html>
