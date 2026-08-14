@@ -5,7 +5,7 @@ const BING_MAPS_KEY = window.BING_MAPS_KEY || "YOUR_BING_MAPS_KEY";
 const DEFAULT_TREND_TYPE = "exponential";
 const DEFAULT_SAMPLE_WINDOW = "5y_2021_2025";
 const DEFAULT_SCENARIO_KEY = "taiwan|中推估";
-const DEFAULT_PALETTE_KEY = "rainbow";
+const DEFAULT_PALETTE_KEY = "red";
 const YEAR_PLAY_INTERVAL_MS = 900;
 const TOPO_TOWN_CODES = [
   "63000", "64000", "65000", "66000", "67000", "68000",
@@ -214,8 +214,7 @@ function getCurrentScenarioLabel() {
 function updateMapTitle() {
   const countyLabel = getSelectedCountyLabel();
   const scopeLabel = countyLabel ? countyLabel : "台灣鄉鎮區";
-  const scenarioLabel = getCurrentScenarioLabel();
-  els.mapTitle.textContent = `${scopeLabel}未來人口空間分布-${scenarioLabel}情境推估`;
+  els.mapTitle.textContent = `${scopeLabel}未來人口空間分布`;
 }
 
 async function loadJson(url) {
@@ -777,10 +776,19 @@ function updateMap() {
     const entities = townEntities.get(town.code) ?? [];
     const projectionIndex = getProjectionIndex(town.code);
     const value = populationValues?.[projectionIndex] ?? 0;
+    const isSelectedTown = state.selectedCode && town.code === state.selectedCode;
     const isFocusedCounty = !state.selectedCountyCode || town.code.startsWith(state.selectedCountyCode);
-    const material = isFocusedCounty
-      ? Cesium.Color.fromCssColorString(interpolateSequential(value, range.min, range.max)).withAlpha(0.9)
-      : Cesium.Color.fromCssColorString("rgba(245, 248, 252, 0.42)");
+    let material;
+
+    if (state.selectedCode) {
+      material = isSelectedTown
+        ? Cesium.Color.fromCssColorString(interpolateSequential(value, range.min, range.max)).withAlpha(0.95)
+        : Cesium.Color.fromCssColorString("rgba(245, 248, 252, 0.18)");
+    } else if (isFocusedCounty) {
+      material = Cesium.Color.fromCssColorString(interpolateSequential(value, range.min, range.max)).withAlpha(0.9);
+    } else {
+      material = Cesium.Color.fromCssColorString("rgba(245, 248, 252, 0.42)");
+    }
     entities.forEach((entity) => {
       if (!entity?.polygon) return;
       entity.polygon.material = material;
@@ -803,9 +811,9 @@ function renderLegend(range, scopeLabel) {
     <div class="legend-ramp" style="background:${palette.gradient}"></div>
     <div class="legend-range">
       <span>${Math.round(range.min).toLocaleString()} 人</span>
+      <span class="legend-scope">(${scopeLabel})</span>
       <span>${Math.round(range.max).toLocaleString()} 人</span>
     </div>
-    <div class="legend-scope">${scopeLabel}</div>
   `;
 }
 

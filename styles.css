@@ -186,7 +186,7 @@ select {
 }
 
 .legend {
-  min-width: 190px;
+  min-width: 280px;
   font-size: 13px;
 }
 
@@ -201,14 +201,16 @@ select {
 .legend-range {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
+  align-items: center;
+  gap: 16px;
 }
 
 .legend-scope {
-  margin-top: 6px;
   font-size: 12px;
   color: #7890a6;
   text-align: center;
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
 
 .town-path {
