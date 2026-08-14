@@ -30,6 +30,7 @@ const state = {
   hoverCode: null,
   selectedCountyCode: null,
   countyBounds: null,
+  townBounds: null,
   townCenters: null,
   map: null,
   townDataSource: null,
@@ -239,6 +240,7 @@ async function init() {
   state.regionTransforms = computeRegionTransforms(geometry.towns);
   state.geojson = await loadPreferredGeoJson(geometry);
   state.countyBounds = computeCountyBounds(state.geojson.towns);
+  state.townBounds = computeTownBounds(state.geojson.towns);
   state.townCenters = computeTownCenters(state.geojson.towns);
 
   geometry.towns.forEach((town, index) => {
@@ -678,7 +680,7 @@ function setupCesiumPicking() {
     state.selectedCode = code;
     state.selectedCountyCode = countyCode ?? null;
     syncOutlineStyles();
-    zoomToSelectedCounty();
+    zoomToSelectedTown();
     updateVisuals();
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
@@ -835,6 +837,19 @@ function zoomToSelectedCounty() {
   });
 }
 
+function zoomToSelectedTown() {
+  if (!state.map || !state.selectedCode) return;
+  const bounds = state.townBounds?.get(state.selectedCode);
+  if (!bounds) {
+    zoomToSelectedCounty();
+    return;
+  }
+  state.map.camera.flyTo({
+    destination: Cesium.Rectangle.fromDegrees(bounds.west, bounds.south, bounds.east, bounds.north),
+    duration: 0.8,
+  });
+}
+
 function syncOutlineStyles() {
   if (!state.map) return;
   const zoomT = getZoomInterpolation();
@@ -855,6 +870,7 @@ function syncOutlineStyles() {
 
   state.countyOutlineDataSource?.entities?.values?.forEach((entity) => {
     if (!entity.polyline) return;
+    entity.polyline.show = !state.selectedCode;
     entity.polyline.width = countyWidth;
     entity.polyline.material = Cesium.Color.fromCssColorString(OUTLINE_STYLE.county.color);
   });
@@ -1047,6 +1063,17 @@ function computeCountyBounds(townsGeoJson) {
   return boundsByCounty;
 }
 
+function computeTownBounds(townsGeoJson) {
+  const boundsByTown = new Map();
+  (townsGeoJson?.features || []).forEach((feature) => {
+    const code = feature?.properties?.code;
+    const bounds = computeFeatureBounds(feature.geometry);
+    if (!code || !bounds) return;
+    boundsByTown.set(code, padTownBounds(bounds));
+  });
+  return boundsByTown;
+}
+
 function computeTownCenters(townsGeoJson) {
   const centers = new Map();
   (townsGeoJson?.features || []).forEach((feature) => {
@@ -1218,6 +1245,19 @@ function padBounds(bounds, countyCode) {
   }
 
   return padded;
+}
+
+function padTownBounds(bounds) {
+  return ensureMinimumSpan(
+    {
+      west: bounds.west - Math.max((bounds.east - bounds.west) * 0.12, 0.01),
+      south: bounds.south - Math.max((bounds.north - bounds.south) * 0.12, 0.01),
+      east: bounds.east + Math.max((bounds.east - bounds.west) * 0.12, 0.01),
+      north: bounds.north + Math.max((bounds.north - bounds.south) * 0.12, 0.01),
+    },
+    0.06,
+    0.05,
+  );
 }
 
 function ensureMinimumSpan(bounds, minLonSpan, minLatSpan) {
