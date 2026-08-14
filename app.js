@@ -871,7 +871,7 @@ function renderBarChart(years, values) {
 
   const width = 860;
   const height = 540;
-  const margin = { top: 22, right: 22, bottom: 62, left: 78 };
+  const margin = { top: 44, right: 22, bottom: 62, left: 108 };
   const innerWidth = width - margin.left - margin.right;
   const innerHeight = height - margin.top - margin.bottom;
   const maxValue = Math.max(...values, 1);
@@ -887,11 +887,13 @@ function renderBarChart(years, values) {
     const tickValue = (maxValue / 5) * i;
     const y = yScale(tickValue);
     svgParts.push(`<line x1="${margin.left}" y1="${y}" x2="${width - margin.right}" y2="${y}" stroke="rgba(152,189,221,0.16)" stroke-dasharray="5 6"></line>`);
-    svgParts.push(`<text x="${margin.left - 14}" y="${y + 5}" text-anchor="end" fill="#8ea1b7" font-size="15">${Math.round(tickValue).toLocaleString()}</text>`);
+    svgParts.push(`<text x="${margin.left - 18}" y="${y + 5}" text-anchor="end" fill="#8ea1b7" font-size="15">${Math.round(tickValue).toLocaleString()}</text>`);
   }
 
   svgParts.push(`<line x1="${margin.left}" y1="${height - margin.bottom}" x2="${width - margin.right}" y2="${height - margin.bottom}" stroke="rgba(241,247,255,0.48)"></line>`);
   svgParts.push(`<line x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${height - margin.bottom}" stroke="rgba(241,247,255,0.48)"></line>`);
+  svgParts.push(`<text x="${margin.left - 18}" y="${margin.top - 18}" text-anchor="end" fill="#9db0c4" font-size="16">(人)</text>`);
+  svgParts.push(`<text x="${width - margin.right + 18}" y="${height - margin.bottom + 28}" text-anchor="start" fill="#9db0c4" font-size="16">(年)</text>`);
 
   years.forEach((year, index) => {
     const x = margin.left + gap * index + (gap - barWidth) / 2;
@@ -1139,11 +1141,30 @@ function padBounds(bounds, countyCode) {
   const lonPad = Math.max((bounds.east - bounds.west) * 0.12, 0.08);
   const latPad = Math.max((bounds.north - bounds.south) * 0.12, 0.08);
   const extraWest = countyCode === "09020" ? 0.2 : 0;
-  return {
+  const padded = {
     west: bounds.west - lonPad - extraWest,
     south: bounds.south - latPad,
     east: bounds.east + lonPad,
     north: bounds.north + latPad,
+  };
+
+  if (countyCode === "10017") {
+    return ensureMinimumSpan(padded, 0.42, 0.34);
+  }
+
+  return padded;
+}
+
+function ensureMinimumSpan(bounds, minLonSpan, minLatSpan) {
+  const lonSpan = bounds.east - bounds.west;
+  const latSpan = bounds.north - bounds.south;
+  const extraLon = Math.max(0, minLonSpan - lonSpan) / 2;
+  const extraLat = Math.max(0, minLatSpan - latSpan) / 2;
+  return {
+    west: bounds.west - extraLon,
+    south: bounds.south - extraLat,
+    east: bounds.east + extraLon,
+    north: bounds.north + extraLat,
   };
 }
 
