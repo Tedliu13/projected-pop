@@ -258,13 +258,15 @@ select {
   position: absolute;
   z-index: 5;
   pointer-events: none;
-  padding: 10px 12px;
-  border-radius: 12px;
+  padding: 0;
+  border-radius: 0;
   color: #f7fbff;
-  font-size: 13px;
+  font-size: 16px;
+  font-weight: 700;
   white-space: nowrap;
-  background: rgba(5, 12, 21, 0.94);
-  border: 1px solid rgba(110, 155, 191, 0.26);
+  background: transparent;
+  border: 0;
+  text-shadow: 0 0 6px rgba(2, 8, 15, 0.9), 0 0 2px rgba(2, 8, 15, 0.9);
   transform: translate(14px, 14px);
 }
 

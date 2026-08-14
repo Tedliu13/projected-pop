@@ -1284,8 +1284,7 @@ function ensureMinimumSpan(bounds, minLonSpan, minLatSpan) {
 function getTooltipContent(code) {
   const town = getTownByCode(code);
   if (!town) return "";
-  const value = getCurrentPopulationMap()[getProjectionIndex(code)] ?? 0;
-  return `${town.county} ${town.town}<br>${state.year} 年人口：${Math.round(value).toLocaleString()} 人`;
+  return `${town.county}${town.town}`;
 }
 
 function showTooltip(event, code) {
