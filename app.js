@@ -18,6 +18,7 @@ const state = {
   geometry: null,
   trends: null,
   projections: null,
+  historicalPopulations: {},
   geojson: null,
   regionGeometryBounds: null,
   regionTransforms: null,
@@ -231,16 +232,82 @@ async function loadJson(url) {
   return response.json();
 }
 
+async function loadCsv(url) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to load ${url}`);
+  }
+  return parseCsv(await response.text());
+}
+
+function parseCsv(text) {
+  const rows = [];
+  let cell = "";
+  let row = [];
+  let quoted = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (character === '"') {
+      if (quoted && text[index + 1] === '"') {
+        cell += '"';
+        index += 1;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (character === "," && !quoted) {
+      row.push(cell);
+      cell = "";
+    } else if ((character === "\n" || character === "\r") && !quoted) {
+      if (character === "\r" && text[index + 1] === "\n") index += 1;
+      row.push(cell);
+      if (row.some((value) => value !== "")) rows.push(row);
+      row = [];
+      cell = "";
+    } else {
+      cell += character;
+    }
+  }
+  if (cell || row.length) {
+    row.push(cell);
+    rows.push(row);
+  }
+
+  const [headers, ...values] = rows;
+  return values.map((cells) => Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? ""])));
+}
+
+function buildHistoricalPopulations(rows, codes) {
+  const codeIndex = new Map(codes.map((code, index) => [String(code), index]));
+  const supportedYears = [2010, 2015, 2020];
+  const populations = Object.fromEntries(
+    supportedYears.map((year) => [year, Array(codes.length).fill(null)]),
+  );
+
+  rows.forEach((row) => {
+    const index = codeIndex.get(String(row.TOWNCODE));
+    if (index === undefined) return;
+    supportedYears.forEach((year) => {
+      const value = Number(row[String(year)]);
+      if (Number.isFinite(value)) populations[year][index] = value;
+    });
+  });
+
+  return populations;
+}
+
 async function init() {
-  const [geometry, trends, projections] = await Promise.all([
+  const [geometry, trends, projections, historicalRows] = await Promise.all([
     loadJson("./data/geometry.json"),
     loadJson("./data/trends.json"),
     loadJson("./data/projections_exponential.json"),
+    loadCsv("./data/taiwan_town_population_by_year.csv"),
   ]);
 
   state.geometry = geometry;
   state.trends = trends;
   state.projections = projections;
+  state.historicalPopulations = buildHistoricalPopulations(historicalRows, projections.codes);
   state.regionGeometryBounds = computeRegionGeometryBounds(geometry.towns);
   state.regionTransforms = computeRegionTransforms(geometry.towns);
   state.geojson = await loadPreferredGeoJson(geometry);
@@ -388,8 +455,9 @@ function setupControls() {
 function updateScenarioState(key) {
   state.selectedScenarioKey = key;
   const scenarioData = getScenarioData();
-  state.years = scenarioData.years.map(Number);
-  state.year = scenarioData.years[0];
+  const historicalYears = Object.keys(state.historicalPopulations).map(Number);
+  state.years = [...new Set([...historicalYears, ...scenarioData.years.map(Number)])].sort((a, b) => a - b);
+  state.year = String(state.years[0]);
   els.yearRange.min = "0";
   els.yearRange.max = String(Math.max(0, state.years.length - 1));
   els.yearRange.step = "1";
@@ -721,7 +789,7 @@ function stepBackMapFocus() {
 }
 
 function getCurrentPopulationMap() {
-  return getScenarioData().populations[state.year];
+  return state.historicalPopulations[state.year] ?? getScenarioData().populations[state.year];
 }
 
 function getPopulationRange(countyCode = state.selectedCountyCode) {
@@ -750,13 +818,12 @@ function getPopulationRange(countyCode = state.selectedCountyCode) {
 }
 
 function getTownHistoricalRange(code) {
-  const scenarioData = getScenarioData();
   const projectionIndex = getProjectionIndex(code);
   let min = Number.POSITIVE_INFINITY;
   let max = Number.NEGATIVE_INFINITY;
 
-  scenarioData.years.forEach((year) => {
-    const value = scenarioData.populations?.[year]?.[projectionIndex];
+  state.years.forEach((year) => {
+    const value = getPopulationValuesForYear(year)?.[projectionIndex];
     if (!Number.isFinite(value)) return;
     min = Math.min(min, value);
     max = Math.max(max, value);
@@ -766,6 +833,10 @@ function getTownHistoricalRange(code) {
     min: Number.isFinite(min) ? min : 0,
     max: Number.isFinite(max) ? max : 1,
   };
+}
+
+function getPopulationValuesForYear(year) {
+  return state.historicalPopulations[String(year)] ?? getScenarioData().populations[String(year)];
 }
 
 function updateVisuals() {
@@ -913,25 +984,24 @@ function syncSelectedTownLabel(zoomT = getZoomInterpolation()) {
 }
 
 function updateChart() {
-  const scenarioData = getScenarioData();
-  const years = scenarioData.years.map(Number);
+  const years = state.years;
   const selectedTown = getTownByCode(state.selectedCode);
   const selectedCountyLabel = getSelectedCountyLabel();
   const values = years.map((year) => {
     if (selectedTown) {
       const projectionIndex = getProjectionIndex(selectedTown.code);
-      return scenarioData.populations[String(year)][projectionIndex];
+      return getPopulationValuesForYear(year)?.[projectionIndex] ?? 0;
     }
 
     if (state.selectedCountyCode) {
       return state.geometry.towns.reduce((sum, town) => {
         if (!town.code.startsWith(state.selectedCountyCode)) return sum;
         const projectionIndex = getProjectionIndex(town.code);
-        return sum + (scenarioData.populations[String(year)][projectionIndex] ?? 0);
+        return sum + (getPopulationValuesForYear(year)?.[projectionIndex] ?? 0);
       }, 0);
     }
 
-    return scenarioData.populations[String(year)].reduce((sum, value) => sum + value, 0);
+    return (getPopulationValuesForYear(year) ?? []).reduce((sum, value) => sum + (value ?? 0), 0);
   });
 
   const title = selectedTown
