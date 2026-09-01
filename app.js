@@ -26,7 +26,10 @@ const state = {
   selectedScenarioKey: DEFAULT_SCENARIO_KEY,
   selectedPaletteKey: DEFAULT_PALETTE_KEY,
   year: "2025",
+  availableYears: [],
   years: [],
+  startYear: null,
+  endYear: null,
   playTimer: null,
   hoverCode: null,
   selectedCountyCode: null,
@@ -44,6 +47,8 @@ const state = {
 const els = {
   scenarioSelect: document.getElementById("scenarioSelect"),
   paletteSelect: document.getElementById("paletteSelect"),
+  startYearSelect: document.getElementById("startYearSelect"),
+  endYearSelect: document.getElementById("endYearSelect"),
   playYearsBtn: document.getElementById("playYearsBtn"),
   stopYearsBtn: document.getElementById("stopYearsBtn"),
   yearRange: document.getElementById("yearRange"),
@@ -442,6 +447,13 @@ function setupControls() {
     updateVisuals();
   });
 
+  els.startYearSelect.addEventListener("change", () => {
+    updateDisplayedYearRange("start");
+  });
+  els.endYearSelect.addEventListener("change", () => {
+    updateDisplayedYearRange("end");
+  });
+
   els.playYearsBtn.addEventListener("click", startPlayback);
   els.stopYearsBtn.addEventListener("click", stopPlayback);
   els.yearRange.addEventListener("input", () => {
@@ -456,8 +468,62 @@ function updateScenarioState(key) {
   state.selectedScenarioKey = key;
   const scenarioData = getScenarioData();
   const historicalYears = Object.keys(state.historicalPopulations).map(Number);
-  state.years = [...new Set([...historicalYears, ...scenarioData.years.map(Number)])].sort((a, b) => a - b);
-  state.year = String(state.years[0]);
+  state.availableYears = [...new Set([...historicalYears, ...scenarioData.years.map(Number)])].sort((a, b) => a - b);
+  const firstYear = state.availableYears[0];
+  const lastYear = state.availableYears.at(-1);
+  if (!state.availableYears.includes(state.startYear) || !state.availableYears.includes(state.endYear) || state.startYear >= state.endYear) {
+    state.startYear = firstYear;
+    state.endYear = lastYear;
+  }
+  renderYearBoundaryOptions();
+  applyDisplayedYearRange(true);
+}
+
+function renderYearBoundaryOptions() {
+  const options = state.availableYears.map((year) => `<option value="${year}">${year}</option>`).join("");
+  els.startYearSelect.innerHTML = options;
+  els.endYearSelect.innerHTML = options;
+  els.startYearSelect.value = String(state.startYear);
+  els.endYearSelect.value = String(state.endYear);
+}
+
+function updateDisplayedYearRange(changedBoundary) {
+  let startYear = Number(els.startYearSelect.value);
+  let endYear = Number(els.endYearSelect.value);
+  const startIndex = state.availableYears.indexOf(startYear);
+  const endIndex = state.availableYears.indexOf(endYear);
+
+  if (startIndex >= endIndex) {
+    if (changedBoundary === "start") {
+      if (startIndex < state.availableYears.length - 1) {
+        endYear = state.availableYears[startIndex + 1];
+      } else {
+        startYear = state.availableYears[startIndex - 1];
+      }
+    } else if (changedBoundary === "end") {
+      if (endIndex > 0) {
+        startYear = state.availableYears[endIndex - 1];
+      } else {
+        endYear = state.availableYears[endIndex + 1];
+      }
+    } else {
+      startYear = state.availableYears[0];
+      endYear = state.availableYears.at(-1);
+    }
+  }
+
+  state.startYear = startYear;
+  state.endYear = endYear;
+  els.startYearSelect.value = String(startYear);
+  els.endYearSelect.value = String(endYear);
+  applyDisplayedYearRange();
+}
+
+function applyDisplayedYearRange(resetYear = false) {
+  state.years = state.availableYears.filter((year) => year >= state.startYear && year <= state.endYear);
+  if (resetYear || !state.years.includes(Number(state.year))) {
+    state.year = String(state.years[0]);
+  }
   els.yearRange.min = "0";
   els.yearRange.max = String(Math.max(0, state.years.length - 1));
   els.yearRange.step = "1";
@@ -1037,7 +1103,7 @@ function renderBarChart(years, values) {
 
   const width = 860;
   const height = 540;
-  const margin = { top: 44, right: 22, bottom: 62, left: 108 };
+  const margin = { top: 44, right: 64, bottom: 62, left: 108 };
   const innerWidth = width - margin.left - margin.right;
   const innerHeight = height - margin.top - margin.bottom;
   const maxValue = Math.max(...values, 1);
@@ -1059,7 +1125,7 @@ function renderBarChart(years, values) {
   svgParts.push(`<line x1="${margin.left}" y1="${height - margin.bottom}" x2="${width - margin.right}" y2="${height - margin.bottom}" stroke="rgba(241,247,255,0.48)"></line>`);
   svgParts.push(`<line x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${height - margin.bottom}" stroke="rgba(241,247,255,0.48)"></line>`);
   svgParts.push(`<text x="${margin.left - 18}" y="${margin.top - 18}" text-anchor="end" fill="#9db0c4" font-size="16">(人)</text>`);
-  svgParts.push(`<text x="${width - margin.right + 18}" y="${height - margin.bottom + 28}" text-anchor="start" fill="#9db0c4" font-size="16">(年)</text>`);
+  svgParts.push(`<text x="${width - margin.right + 12}" y="${height - margin.bottom + 28}" text-anchor="start" fill="#9db0c4" font-size="16">(年)</text>`);
 
   years.forEach((year, index) => {
     const x = margin.left + gap * index + (gap - barWidth) / 2;
