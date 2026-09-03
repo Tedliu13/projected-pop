@@ -864,35 +864,7 @@ function getCurrentPopulationMap() {
 }
 
 function getPopulationRange() {
-  if (state.selectedCode) {
-    return { min: 0, max: getTownPopulationMaximum(state.selectedCode) };
-  }
-  if (state.selectedCountyCode) {
-    return { min: 0, max: getCountyTownPopulationMaximum(state.selectedCountyCode) };
-  }
   return { min: 0, max: getAllTownPopulationMaximum() };
-}
-
-function getCountyTownPopulationMaximum(countyCode) {
-  let maximum = 0;
-
-  state.availableYears.forEach((year) => {
-    const values = getPopulationValuesForYear(year) ?? [];
-    state.geometry.towns.forEach((town) => {
-      if (!town.code.startsWith(countyCode)) return;
-      maximum = Math.max(maximum, values[getProjectionIndex(town.code)] ?? 0);
-    });
-  });
-
-  return Math.max(1, maximum);
-}
-
-function getTownPopulationMaximum(code) {
-  const projectionIndex = getProjectionIndex(code);
-  const maximum = Math.max(0, ...state.availableYears.map((year) => (
-    getPopulationValuesForYear(year)?.[projectionIndex] ?? 0
-  )));
-  return Math.max(1, maximum);
 }
 
 function getAllTownPopulationMaximum() {
