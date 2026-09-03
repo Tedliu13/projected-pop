@@ -155,7 +155,7 @@ select {
 .map-scene-container,
 .map-overlay,
 .chart-svg {
-  width: 100%;
+  width: calc(100% + 10px);
   height: 100%;
   display: block;
 }
@@ -207,8 +207,9 @@ select {
 }
 
 .legend {
-  min-width: 280px;
-  font-size: 13px;
+  width: min(550px, 64vw);
+  min-width: 460px;
+  font-size: 11px;
 }
 
 .legend-ramp {
@@ -219,11 +220,51 @@ select {
   margin-bottom: 8px;
 }
 
+.legend-discrete-ramp {
+  display: grid;
+  grid-template-columns: repeat(14, 1fr);
+  overflow: hidden;
+}
+
+.legend-step + .legend-step {
+  border-left: 1px solid rgba(4, 9, 16, 0.45);
+}
+
 .legend-range {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 16px;
+}
+
+.legend-breaks {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 14px;
+  color: #9bacc0;
+  font-size: 8px;
+  letter-spacing: -0.25px;
+  font-variant-numeric: tabular-nums;
+}
+
+.legend-breaks span {
+  position: absolute;
+  top: 0;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.legend-breaks span:first-child {
+  transform: none;
+}
+
+.legend-breaks span:last-child {
+  transform: translateX(-100%);
+}
+
+.legend-breaks span:nth-last-child(2) {
+  transform: translateX(-70%);
 }
 
 .legend-scope {
@@ -419,6 +460,11 @@ select {
   .panel-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .legend {
+    width: 100%;
+    min-width: 0;
   }
 
   .map-stage {

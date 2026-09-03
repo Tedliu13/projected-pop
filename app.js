@@ -7,6 +7,10 @@ const DEFAULT_SAMPLE_WINDOW = "5y_2021_2025";
 const DEFAULT_SCENARIO_KEY = "taiwan|中推估";
 const DEFAULT_PALETTE_KEY = "red";
 const YEAR_PLAY_INTERVAL_MS = 900;
+const POPULATION_BREAKS = [
+  0, 100, 500, 1000, 5000, 10000, 25000, 50000,
+  75000, 100000, 200000, 300000, 400000, 500000, 600000,
+];
 const TOPO_TOWN_CODES = [
   "63000", "64000", "65000", "66000", "67000", "68000",
   "10002", "10004", "10005", "10007", "10008", "10009",
@@ -415,7 +419,7 @@ function configureStaticView() {
   const region = state.geometry.regions.main;
   els.mapSvg.setAttribute("viewBox", `${region.x} ${region.y} ${region.width} ${region.height}`);
   applyOverlayAlignment();
-  renderLegend({ min: 0, max: 0 });
+  renderLegend();
 }
 
 function applyOverlayAlignment() {
@@ -863,20 +867,6 @@ function getCurrentPopulationMap() {
   return state.historicalPopulations[state.year] ?? getScenarioData().populations[state.year];
 }
 
-function getPopulationRange() {
-  return { min: 0, max: getAllTownPopulationMaximum() };
-}
-
-function getAllTownPopulationMaximum() {
-  let maximum = 0;
-  state.availableYears.forEach((year) => {
-    (getPopulationValuesForYear(year) ?? []).forEach((value) => {
-      maximum = Math.max(maximum, value ?? 0);
-    });
-  });
-  return Math.max(1, maximum);
-}
-
 function getPopulationValuesForYear(year) {
   return state.historicalPopulations[String(year)] ?? getScenarioData().populations[String(year)];
 }
@@ -888,9 +878,8 @@ function updateVisuals() {
 
 function updateMap() {
   const populationValues = getCurrentPopulationMap();
-  const range = getPopulationRange();
   updateMapTitle();
-  renderLegend(range);
+  renderLegend();
   updateMapNavigation();
 
   state.geometry.towns.forEach((town) => {
@@ -903,10 +892,10 @@ function updateMap() {
 
     if (state.selectedCode) {
       material = isSelectedTown
-        ? Cesium.Color.fromCssColorString(interpolateSequential(value, range.min, range.max)).withAlpha(0.95)
+        ? Cesium.Color.fromCssColorString(getDiscretePopulationColor(value)).withAlpha(0.95)
         : Cesium.Color.fromCssColorString("rgba(245, 248, 252, 0.18)");
     } else if (isFocusedCounty) {
-      material = Cesium.Color.fromCssColorString(interpolateSequential(value, range.min, range.max)).withAlpha(0.9);
+      material = Cesium.Color.fromCssColorString(getDiscretePopulationColor(value)).withAlpha(0.9);
     } else {
       material = Cesium.Color.fromCssColorString("rgba(245, 248, 252, 0.42)");
     }
@@ -919,14 +908,18 @@ function updateMap() {
   syncSelectedTownLabel();
 }
 
-function renderLegend(range) {
+function renderLegend() {
   const palette = getActivePalette();
+  const classCount = POPULATION_BREAKS.length - 1;
+  const steps = Array.from({ length: classCount }, (_, index) => (
+    `<span class="legend-step" style="background:${getPaletteColor(index / Math.max(1, classCount - 1), palette)}"></span>`
+  )).join("");
+  const labels = POPULATION_BREAKS.map((value, index) => (
+    `<span style="left:${(index / (POPULATION_BREAKS.length - 1)) * 100}%">${value.toLocaleString()}</span>`
+  )).join("");
   els.legend.innerHTML = `
-    <div class="legend-ramp" style="background:${palette.gradient}"></div>
-    <div class="legend-range">
-      <span>${Math.round(range.min).toLocaleString()} 人</span>
-      <span>${Math.round(range.max).toLocaleString()} 人</span>
-    </div>
+    <div class="legend-ramp legend-discrete-ramp">${steps}</div>
+    <div class="legend-range legend-breaks">${labels}</div>
   `;
 }
 
@@ -1155,9 +1148,19 @@ function renderBarChart(years, values) {
   els.chartSvg.innerHTML = defs + svgParts.join("");
 }
 
-function interpolateSequential(value, min, max) {
-  const t = clamp((value - min) / (max - min || 1), 0, 1);
-  return interpolateStops(getActivePalette().stops, Math.pow(t, 0.92));
+function getDiscretePopulationColor(value) {
+  let classIndex = POPULATION_BREAKS.length - 2;
+  for (let index = 0; index < POPULATION_BREAKS.length - 1; index += 1) {
+    if (value < POPULATION_BREAKS[index + 1]) {
+      classIndex = index;
+      break;
+    }
+  }
+  return getPaletteColor(classIndex / Math.max(1, POPULATION_BREAKS.length - 2));
+}
+
+function getPaletteColor(t, palette = getActivePalette()) {
+  return interpolateStops(palette.stops, t);
 }
 
 function getActivePalette() {
