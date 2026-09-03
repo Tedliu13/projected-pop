@@ -67,6 +67,9 @@ const els = {
   countyLayer: document.getElementById("countyLayer"),
   insetLayer: document.getElementById("insetLayer"),
   tooltip: document.getElementById("tooltip"),
+  mapNavigation: document.getElementById("mapNavigation"),
+  backToTaiwanBtn: document.getElementById("backToTaiwanBtn"),
+  backToCountyBtn: document.getElementById("backToCountyBtn"),
   mapTokenNotice: document.getElementById("mapTokenNotice"),
 };
 
@@ -226,7 +229,7 @@ function updateMapTitle() {
   }
   const countyLabel = getSelectedCountyLabel();
   const scopeLabel = countyLabel ? countyLabel : "台灣鄉鎮區";
-  els.mapTitle.textContent = `${scopeLabel}未來人口空間分布`;
+  els.mapTitle.textContent = `${scopeLabel}人口空間分布`;
 }
 
 async function loadJson(url) {
@@ -412,7 +415,7 @@ function configureStaticView() {
   const region = state.geometry.regions.main;
   els.mapSvg.setAttribute("viewBox", `${region.x} ${region.y} ${region.width} ${region.height}`);
   applyOverlayAlignment();
-  renderLegend({ min: 0, max: 0 }, null);
+  renderLegend({ min: 0, max: 0 });
 }
 
 function applyOverlayAlignment() {
@@ -453,6 +456,8 @@ function setupControls() {
   els.endYearSelect.addEventListener("change", () => {
     updateDisplayedYearRange("end");
   });
+  els.backToTaiwanBtn.addEventListener("click", returnToTaiwan);
+  els.backToCountyBtn.addEventListener("click", returnToCounty);
 
   els.playYearsBtn.addEventListener("click", startPlayback);
   els.stopYearsBtn.addEventListener("click", stopPlayback);
@@ -858,47 +863,46 @@ function getCurrentPopulationMap() {
   return state.historicalPopulations[state.year] ?? getScenarioData().populations[state.year];
 }
 
-function getPopulationRange(countyCode = state.selectedCountyCode) {
-  const selectedTown = getSelectedTown();
-  if (selectedTown) {
-    return getTownHistoricalRange(selectedTown.code);
+function getPopulationRange() {
+  if (state.selectedCode) {
+    return { min: 0, max: getTownPopulationMaximum(state.selectedCode) };
   }
-
-  const populationValues = getCurrentPopulationMap();
-  let min = Number.POSITIVE_INFINITY;
-  let max = Number.NEGATIVE_INFINITY;
-
-  state.geometry.towns.forEach((town) => {
-    if (countyCode && !town.code.startsWith(countyCode)) return;
-    const projectionIndex = getProjectionIndex(town.code);
-    const value = populationValues?.[projectionIndex];
-    if (!Number.isFinite(value)) return;
-    min = Math.min(min, value);
-    max = Math.max(max, value);
-  });
-
-  return {
-    min: Number.isFinite(min) ? min : 0,
-    max: Number.isFinite(max) ? max : 1,
-  };
+  if (state.selectedCountyCode) {
+    return { min: 0, max: getCountyTownPopulationMaximum(state.selectedCountyCode) };
+  }
+  return { min: 0, max: getAllTownPopulationMaximum() };
 }
 
-function getTownHistoricalRange(code) {
-  const projectionIndex = getProjectionIndex(code);
-  let min = Number.POSITIVE_INFINITY;
-  let max = Number.NEGATIVE_INFINITY;
+function getCountyTownPopulationMaximum(countyCode) {
+  let maximum = 0;
 
-  state.years.forEach((year) => {
-    const value = getPopulationValuesForYear(year)?.[projectionIndex];
-    if (!Number.isFinite(value)) return;
-    min = Math.min(min, value);
-    max = Math.max(max, value);
+  state.availableYears.forEach((year) => {
+    const values = getPopulationValuesForYear(year) ?? [];
+    state.geometry.towns.forEach((town) => {
+      if (!town.code.startsWith(countyCode)) return;
+      maximum = Math.max(maximum, values[getProjectionIndex(town.code)] ?? 0);
+    });
   });
 
-  return {
-    min: Number.isFinite(min) ? min : 0,
-    max: Number.isFinite(max) ? max : 1,
-  };
+  return Math.max(1, maximum);
+}
+
+function getTownPopulationMaximum(code) {
+  const projectionIndex = getProjectionIndex(code);
+  const maximum = Math.max(0, ...state.availableYears.map((year) => (
+    getPopulationValuesForYear(year)?.[projectionIndex] ?? 0
+  )));
+  return Math.max(1, maximum);
+}
+
+function getAllTownPopulationMaximum() {
+  let maximum = 0;
+  state.availableYears.forEach((year) => {
+    (getPopulationValuesForYear(year) ?? []).forEach((value) => {
+      maximum = Math.max(maximum, value ?? 0);
+    });
+  });
+  return Math.max(1, maximum);
 }
 
 function getPopulationValuesForYear(year) {
@@ -914,7 +918,8 @@ function updateMap() {
   const populationValues = getCurrentPopulationMap();
   const range = getPopulationRange();
   updateMapTitle();
-  renderLegend(range, getLegendScopeLabel());
+  renderLegend(range);
+  updateMapNavigation();
 
   state.geometry.towns.forEach((town) => {
     const entities = townEntities.get(town.code) ?? [];
@@ -942,25 +947,44 @@ function updateMap() {
   syncSelectedTownLabel();
 }
 
-function getLegendScopeLabel() {
-  const selectedTown = getSelectedTown();
-  if (selectedTown) {
-    return `${selectedTown.county}${selectedTown.town}歷年範圍`;
-  }
-  const countyLabel = getSelectedCountyLabel();
-  return countyLabel ? `${countyLabel}範圍` : "全台範圍";
-}
-
-function renderLegend(range, scopeLabel) {
+function renderLegend(range) {
   const palette = getActivePalette();
   els.legend.innerHTML = `
     <div class="legend-ramp" style="background:${palette.gradient}"></div>
     <div class="legend-range">
       <span>${Math.round(range.min).toLocaleString()} 人</span>
-      <span class="legend-scope">(${scopeLabel})</span>
       <span>${Math.round(range.max).toLocaleString()} 人</span>
     </div>
   `;
+}
+
+function updateMapNavigation() {
+  const countyLabel = getSelectedCountyLabel();
+  const isTownLevel = Boolean(state.selectedCode);
+  const isCountyLevel = Boolean(state.selectedCountyCode && !state.selectedCode);
+  const shouldShow = isTownLevel || isCountyLevel;
+
+  els.mapNavigation.classList.toggle("hidden", !shouldShow);
+  els.backToCountyBtn.classList.toggle("hidden", !isTownLevel);
+  if (isTownLevel) {
+    els.backToCountyBtn.textContent = countyLabel ?? "縣市";
+  }
+}
+
+function returnToTaiwan() {
+  state.selectedCode = null;
+  state.selectedCountyCode = null;
+  syncOutlineStyles();
+  resetMapView();
+  updateVisuals();
+}
+
+function returnToCounty() {
+  if (!state.selectedCountyCode) return;
+  state.selectedCode = null;
+  syncOutlineStyles();
+  zoomToSelectedCounty();
+  updateVisuals();
 }
 
 function resetMapView() {
@@ -1071,10 +1095,10 @@ function updateChart() {
   });
 
   const title = selectedTown
-    ? `${selectedTown.county}${selectedTown.town}未來人口推估`
+    ? `${selectedTown.county}${selectedTown.town}人口變化推估`
     : selectedCountyLabel
-      ? `${selectedCountyLabel}未來人口推估`
-    : "全台未來人口推估";
+      ? `${selectedCountyLabel}人口變化推估`
+      : "全台人口變化推估";
 
   els.chartTitle.textContent = title;
   renderBarChart(years, values);

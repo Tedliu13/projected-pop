@@ -17,6 +17,10 @@
   box-sizing: border-box;
 }
 
+.hidden {
+  display: none !important;
+}
+
 html,
 body {
   height: 100%;
@@ -129,6 +133,23 @@ select {
 
 .map-stage {
   flex: 1 1 auto;
+}
+
+.map-navigation {
+  position: absolute;
+  z-index: 6;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  gap: 8px;
+}
+
+.map-navigation button {
+  padding: 6px 12px;
+  border-color: rgba(184, 220, 244, 0.38);
+  background: rgba(5, 14, 24, 0.8);
+  font-size: 13px;
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.25);
 }
 
 .map-scene-container,

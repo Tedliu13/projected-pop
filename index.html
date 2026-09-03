@@ -12,7 +12,7 @@
     <main class="dashboard-grid">
       <section class="panel map-panel">
         <div class="panel-header">
-          <h2 id="mapTitle">台灣鄉鎮區未來人口變化</h2>
+          <h2 id="mapTitle">台灣鄉鎮區人口空間分布</h2>
           <div id="legend" class="legend"></div>
         </div>
         <div id="mapStage" class="map-stage">
@@ -24,14 +24,18 @@
               <g id="insetLayer"></g>
             </g>
           </svg>
-          <div id="tooltip" class="tooltip hidden"></div>
-          <div id="mapTokenNotice" class="map-token-notice hidden"></div>
+        <div id="tooltip" class="tooltip hidden"></div>
+        <div id="mapNavigation" class="map-navigation hidden" aria-label="地圖層級導覽">
+          <button id="backToTaiwanBtn" type="button">全台</button>
+          <button id="backToCountyBtn" type="button" class="hidden"></button>
+        </div>
+        <div id="mapTokenNotice" class="map-token-notice hidden"></div>
         </div>
       </section>
 
       <section class="panel chart-panel">
         <div class="panel-header chart-header">
-          <h2 id="chartTitle">全台未來人口推估(人)</h2>
+          <h2 id="chartTitle">全台人口變化推估</h2>
         </div>
         <div class="chart-wrapper">
           <svg id="chartSvg" class="chart-svg" aria-label="Population projection chart"></svg>
