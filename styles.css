@@ -207,7 +207,7 @@ select {
 }
 
 .legend {
-  width: min(550px, 64vw);
+  width: min(570px, 66vw);
   min-width: 460px;
   font-size: 11px;
 }
@@ -222,7 +222,7 @@ select {
 
 .legend-discrete-ramp {
   display: grid;
-  grid-template-columns: repeat(14, 1fr);
+  grid-template-columns: repeat(15, 1fr);
   overflow: hidden;
 }
 
