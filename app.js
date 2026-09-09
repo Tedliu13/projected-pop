@@ -5,7 +5,7 @@ const BING_MAPS_KEY = window.BING_MAPS_KEY || "YOUR_BING_MAPS_KEY";
 const DEFAULT_TREND_TYPE = "exponential";
 const DEFAULT_SAMPLE_WINDOW = "5y_2021_2025";
 const DEFAULT_SCENARIO_KEY = "taiwan|中推估";
-const DEFAULT_PALETTE_KEY = "red";
+const DEFAULT_PALETTE_KEY = "purpleMorandi";
 const YEAR_PLAY_INTERVAL_MS = 900;
 const POPULATION_BREAKS = [
   0, 100, 500, 1000, 3000, 5000, 10000, 25000, 50000,
@@ -119,39 +119,65 @@ const OUTLINE_STYLE = {
   },
 };
 const COLOR_PALETTES = {
-  rainbow: {
-    gradient: "linear-gradient(90deg, #f4fbff 0%, #46b5ff 18%, #19d42b 38%, #fff04a 58%, #ff9a2f 74%, #e42020 88%, #d420ff 100%)",
+  purpleMorandi: {
     stops: [
-      [244, 251, 255],
-      [70, 181, 255],
-      [25, 212, 43],
-      [255, 240, 74],
-      [255, 154, 47],
-      [228, 32, 32],
-      [212, 32, 255],
+      "#E8E4EC",
+      "#D7CFDC",
+      "#C4B8CA",
+      "#BAAFC3",
+      "#AA9BB2",
+      "#9E90A7",
+      "#8B7592",
+      "#7B6283",
+      "#6B5373",
+      "#624568",
+      "#5A3760",
     ],
+    bars: {
+      history: "#B9ABCF",
+      selected: "#CCAFE2",
+      future: "#4E4D5E",
+    },
   },
-  red: {
-    gradient: "linear-gradient(90deg, #ffffff 0%, #ffd8d8 20%, #ffadad 40%, #ff7b7b 62%, #f24343 80%, #b10000 100%)",
+  roseMorandi: {
     stops: [
-      [255, 255, 255],
-      [255, 216, 216],
-      [255, 173, 173],
-      [255, 123, 123],
-      [242, 67, 67],
-      [177, 0, 0],
+      "#EEE5E1",
+      "#EDE2DF",
+      "#E1C3B9",
+      "#DBC3B8",
+      "#CBA89D",
+      "#CB9895",
+      "#B88D89",
+      "#B7827D",
+      "#B27C82",
+      "#A86669",
+      "#873B46",
     ],
+    bars: {
+      history: "#CC9E98",
+      selected: "#F7C2BC",
+      future: "#625554",
+    },
   },
-  blue: {
-    gradient: "linear-gradient(90deg, #ffffff 0%, #dceeff 20%, #add6ff 40%, #74b8ff 62%, #3f8dff 80%, #0f4fbf 100%)",
+  apricotMorandi: {
     stops: [
-      [255, 255, 255],
-      [220, 238, 255],
-      [173, 214, 255],
-      [116, 184, 255],
-      [63, 141, 255],
-      [15, 79, 191],
+      "#F0EBE2",
+      "#ECDAC9",
+      "#E5C9B2",
+      "#DFBDA4",
+      "#DDB59C",
+      "#D7A287",
+      "#D39B81",
+      "#CF927B",
+      "#C88873",
+      "#BB7967",
+      "#A8675A",
     ],
+    bars: {
+      history: "#E3C1A5",
+      selected: "#D5947A",
+      future: "#87695C",
+    },
   },
 };
 function getScenarioLabel(source, scenario) {
@@ -1100,6 +1126,7 @@ function renderBarChart(years, values) {
   const barWidth = innerWidth / Math.max(years.length, 1) * 0.62;
   const gap = innerWidth / Math.max(years.length, 1);
   const yScale = (value) => margin.top + innerHeight - (value / maxValue) * innerHeight;
+  const palette = getActivePalette();
   const svgParts = [];
 
   svgParts.push(`<rect x="0" y="0" width="${width}" height="${height}" fill="transparent"></rect>`);
@@ -1123,10 +1150,10 @@ function renderBarChart(years, values) {
     const isCurrent = index === currentIndex;
     const isVisible = index <= currentIndex;
     const fill = isCurrent
-      ? "url(#barHighlight)"
+      ? palette.bars.selected
       : isVisible
-        ? "rgba(77, 215, 255, 0.72)"
-        : "rgba(77, 215, 255, 0.15)";
+        ? palette.bars.history
+        : palette.bars.future;
 
     svgParts.push(`<rect class="chart-bar" data-year="${year}" x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" rx="12" fill="${fill}" style="cursor:pointer"></rect>`);
     svgParts.push(`<text x="${x + barWidth / 2}" y="${height - margin.bottom + 28}" text-anchor="middle" fill="#9db0c4" font-size="15">${year}</text>`);
@@ -1136,16 +1163,7 @@ function renderBarChart(years, values) {
     }
   });
 
-  const defs = `
-    <defs>
-      <linearGradient id="barHighlight" x1="0" x2="0" y1="0" y2="1">
-        <stop offset="0%" stop-color="#ffd166"></stop>
-        <stop offset="100%" stop-color="#ff7b54"></stop>
-      </linearGradient>
-    </defs>
-  `;
-
-  els.chartSvg.innerHTML = defs + svgParts.join("");
+  els.chartSvg.innerHTML = svgParts.join("");
 }
 
 function getDiscretePopulationColor(value) {
@@ -1171,7 +1189,17 @@ function interpolateStops(stops, t) {
   const scaled = clamp(t, 0, 1) * (stops.length - 1);
   const index = Math.min(stops.length - 2, Math.floor(scaled));
   const localT = scaled - index;
-  return mixColor(stops[index], stops[index + 1], localT);
+  return mixColor(toRgb(stops[index]), toRgb(stops[index + 1]), localT);
+}
+
+function toRgb(color) {
+  if (Array.isArray(color)) return color;
+  const hex = color.replace("#", "");
+  return [
+    Number.parseInt(hex.slice(0, 2), 16),
+    Number.parseInt(hex.slice(2, 4), 16),
+    Number.parseInt(hex.slice(4, 6), 16),
+  ];
 }
 
 function mixColor(a, b, t) {
