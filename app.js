@@ -102,6 +102,7 @@ const MAINLAND_CONTROL_POINTS = {
 const TAIWAN_VIEW_RECTANGLE = Cesium?.Rectangle?.fromDegrees
   ? Cesium.Rectangle.fromDegrees(118.7, 21.75, 122.1, 25.55)
   : null;
+const DATA_FILL_ALPHA = 0.99;
 const OUTLINE_STYLE = {
   town: {
     color: "rgba(232,244,255,0.22)",
@@ -765,6 +766,8 @@ async function loadGeoJsonLayers() {
     entity.polyline.clampToGround = false;
     entity.polyline.width = OUTLINE_STYLE.town.widthMax;
     entity.polyline.material = Cesium.Color.fromCssColorString(OUTLINE_STYLE.town.color);
+    entity.polyline.depthFailMaterial = Cesium.Color.fromCssColorString(OUTLINE_STYLE.town.color);
+    entity.polyline.disableDepthTestDistance = Number.POSITIVE_INFINITY;
   });
 
   state.countyOutlineDataSource.entities.values.forEach((entity) => {
@@ -772,6 +775,8 @@ async function loadGeoJsonLayers() {
     entity.polyline.clampToGround = false;
     entity.polyline.width = OUTLINE_STYLE.county.widthMax;
     entity.polyline.material = Cesium.Color.fromCssColorString(OUTLINE_STYLE.county.color);
+    entity.polyline.depthFailMaterial = Cesium.Color.fromCssColorString(OUTLINE_STYLE.county.color);
+    entity.polyline.disableDepthTestDistance = Number.POSITIVE_INFINITY;
   });
 }
 
@@ -918,10 +923,10 @@ function updateMap() {
 
     if (state.selectedCode) {
       material = isSelectedTown
-        ? Cesium.Color.fromCssColorString(getDiscretePopulationColor(value)).withAlpha(0.95)
+        ? Cesium.Color.fromCssColorString(getDiscretePopulationColor(value)).withAlpha(DATA_FILL_ALPHA)
         : Cesium.Color.fromCssColorString("rgba(245, 248, 252, 0.18)");
     } else if (isFocusedCounty) {
-      material = Cesium.Color.fromCssColorString(getDiscretePopulationColor(value)).withAlpha(0.9);
+      material = Cesium.Color.fromCssColorString(getDiscretePopulationColor(value)).withAlpha(DATA_FILL_ALPHA);
     } else {
       material = Cesium.Color.fromCssColorString("rgba(245, 248, 252, 0.42)");
     }
@@ -1019,22 +1024,45 @@ function syncOutlineStyles() {
     const code = entity.properties?.code?.getValue?.();
     if (!entity.polyline) return;
     const isSelected = code && code === state.selectedCode;
-    entity.polyline.width = isSelected
-      ? townWidth + OUTLINE_STYLE.selected.widthBoost
-      : townWidth;
-    entity.polyline.material = isSelected
+    const materialKey = isSelected ? "selected-town" : "town";
+    const material = isSelected
       ? OUTLINE_STYLE.selected.color
       : Cesium.Color.fromCssColorString(OUTLINE_STYLE.town.color);
+    setPolylineStyle(entity, {
+      width: isSelected ? townWidth + OUTLINE_STYLE.selected.widthBoost : townWidth,
+      material,
+      materialKey,
+      show: true,
+    });
   });
 
   state.countyOutlineDataSource?.entities?.values?.forEach((entity) => {
     if (!entity.polyline) return;
-    entity.polyline.show = !state.selectedCode;
-    entity.polyline.width = countyWidth;
-    entity.polyline.material = Cesium.Color.fromCssColorString(OUTLINE_STYLE.county.color);
+    setPolylineStyle(entity, {
+      width: countyWidth,
+      material: Cesium.Color.fromCssColorString(OUTLINE_STYLE.county.color),
+      materialKey: "county",
+      show: !state.selectedCode,
+    });
   });
 
   syncSelectedTownLabel(zoomT);
+}
+
+function setPolylineStyle(entity, { width, material, materialKey, show }) {
+  if (entity._outlineShow !== show) {
+    entity.polyline.show = show;
+    entity._outlineShow = show;
+  }
+  if (!Number.isFinite(entity._outlineWidth) || Math.abs(entity._outlineWidth - width) > 0.03) {
+    entity.polyline.width = width;
+    entity._outlineWidth = width;
+  }
+  if (entity._outlineMaterialKey !== materialKey) {
+    entity.polyline.material = material;
+    entity.polyline.depthFailMaterial = material;
+    entity._outlineMaterialKey = materialKey;
+  }
 }
 
 function getZoomInterpolation() {
