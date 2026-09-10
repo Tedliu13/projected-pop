@@ -968,7 +968,6 @@ function renderSvgOverlay(populationValues = getCurrentPopulationMap()) {
   els.mapSvg.style.height = `${height}px`;
   els.mapSvg.setAttribute("viewBox", `0 0 ${width} ${height}`);
 
-  const underlayParts = [];
   const townParts = [];
   const countyParts = [];
   const selectedCode = state.selectedCode;
@@ -979,16 +978,11 @@ function renderSvgOverlay(populationValues = getCurrentPopulationMap()) {
     if (!code) return;
     const isSelectedTown = selectedCode && code === selectedCode;
     const isFocusedCounty = !selectedCountyCode || code.startsWith(selectedCountyCode);
-    const shouldShowUnderlay = selectedCode ? isSelectedTown : true;
     const shouldShowData = selectedCode ? isSelectedTown : isFocusedCounty;
-    if (!shouldShowUnderlay && !shouldShowData) return;
+    if (!shouldShowData) return;
 
     const path = geoJsonGeometryToSvgPath(feature.geometry);
     if (!path) return;
-
-    if (shouldShowUnderlay) {
-      underlayParts.push(`<path class="town-underlay-path" d="${path}"></path>`);
-    }
 
     if (shouldShowData) {
       const value = populationValues?.[getProjectionIndex(code)] ?? 0;
@@ -1006,7 +1000,7 @@ function renderSvgOverlay(populationValues = getCurrentPopulationMap()) {
     });
   }
 
-  els.townLayer.innerHTML = underlayParts.join("") + townParts.join("");
+  els.townLayer.innerHTML = townParts.join("");
   els.countyLayer.innerHTML = countyParts.join("");
   els.insetLayer.innerHTML = renderSelectedTownSvgLabel(populationValues);
 }

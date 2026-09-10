@@ -281,13 +281,6 @@ select {
   flex: 0 0 auto;
 }
 
-.town-underlay-path {
-  fill: #ffffff;
-  stroke: none;
-  fill-rule: evenodd;
-  vector-effect: non-scaling-stroke;
-}
-
 .town-path {
   stroke: rgba(232, 244, 255, 0.36);
   stroke-width: 1;
