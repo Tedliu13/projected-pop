@@ -41,6 +41,7 @@ const state = {
   townBounds: null,
   townCenters: null,
   map: null,
+  townUnderlayDataSource: null,
   townDataSource: null,
   countyDataSource: null,
   townOutlineDataSource: null,
@@ -103,6 +104,7 @@ const TAIWAN_VIEW_RECTANGLE = Cesium?.Rectangle?.fromDegrees
   ? Cesium.Rectangle.fromDegrees(118.7, 21.75, 122.1, 25.55)
   : null;
 const DATA_FILL_ALPHA = 0.99;
+const UNDERLAY_HEIGHT_METERS = -20;
 const OUTLINE_STYLE = {
   town: {
     color: "rgba(232,244,255,0.22)",
@@ -710,6 +712,12 @@ async function createCesiumBaseLayer() {
 }
 
 async function loadGeoJsonLayers() {
+  state.townUnderlayDataSource = await Cesium.GeoJsonDataSource.load(state.geojson.towns, {
+    clampToGround: false,
+    stroke: Cesium.Color.TRANSPARENT,
+    fill: Cesium.Color.WHITE,
+    strokeWidth: 0,
+  });
   state.townDataSource = await Cesium.GeoJsonDataSource.load(state.geojson.towns, {
     clampToGround: false,
     stroke: Cesium.Color.fromCssColorString("rgba(232,244,255,0.34)"),
@@ -739,10 +747,19 @@ async function loadGeoJsonLayers() {
     },
   );
 
+  state.map.dataSources.add(state.townUnderlayDataSource);
   state.map.dataSources.add(state.townDataSource);
   state.map.dataSources.add(state.countyDataSource);
   state.map.dataSources.add(state.townOutlineDataSource);
   state.map.dataSources.add(state.countyOutlineDataSource);
+
+  state.townUnderlayDataSource.entities.values.forEach((entity) => {
+    if (!entity.polygon) return;
+    entity.polygon.material = Cesium.Color.WHITE;
+    entity.polygon.outline = false;
+    entity.polygon.height = UNDERLAY_HEIGHT_METERS;
+    entity.polygon.extrudedHeight = UNDERLAY_HEIGHT_METERS;
+  });
 
   state.townDataSource.entities.values.forEach((entity) => {
     const code = entity.properties?.code?.getValue?.();
