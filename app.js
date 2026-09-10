@@ -41,12 +41,12 @@ const state = {
   townBounds: null,
   townCenters: null,
   map: null,
-  townUnderlayDataSource: null,
   townDataSource: null,
   countyDataSource: null,
   townOutlineDataSource: null,
   countyOutlineDataSource: null,
   selectedTownLabelEntity: null,
+  svgOverlayFrame: null,
 };
 
 const els = {
@@ -103,8 +103,7 @@ const MAINLAND_CONTROL_POINTS = {
 const TAIWAN_VIEW_RECTANGLE = Cesium?.Rectangle?.fromDegrees
   ? Cesium.Rectangle.fromDegrees(118.7, 21.75, 122.1, 25.55)
   : null;
-const DATA_FILL_ALPHA = 0.99;
-const UNDERLAY_HEIGHT_METERS = -20;
+const CESIUM_PICK_ALPHA = 0.01;
 const OUTLINE_STYLE = {
   town: {
     color: "rgba(232,244,255,0.22)",
@@ -445,9 +444,7 @@ async function loadTopoJsonCollections() {
 }
 
 function configureStaticView() {
-  const region = state.geometry.regions.main;
-  els.mapSvg.setAttribute("viewBox", `${region.x} ${region.y} ${region.width} ${region.height}`);
-  applyOverlayAlignment();
+  els.mapSvg.classList.remove("map-overlay-hidden");
   renderLegend();
 }
 
@@ -661,12 +658,17 @@ async function initCesium() {
       },
     });
     setupCesiumPicking();
-    state.map.camera.changed.addEventListener(syncOutlineStyles);
+    state.map.camera.changed.addEventListener(() => {
+      syncOutlineStyles();
+      scheduleSvgOverlayRender();
+    });
+    window.addEventListener("resize", scheduleSvgOverlayRender);
 
     state.map.camera.setView({
       destination: TAIWAN_VIEW_RECTANGLE ?? Cesium.Rectangle.fromDegrees(118.0, 21.7, 122.7, 26.45),
     });
     syncOutlineStyles();
+    renderSvgOverlay();
 
     els.mapTokenNotice.classList.add("hidden");
   } catch (error) {
@@ -712,12 +714,6 @@ async function createCesiumBaseLayer() {
 }
 
 async function loadGeoJsonLayers() {
-  state.townUnderlayDataSource = await Cesium.GeoJsonDataSource.load(state.geojson.towns, {
-    clampToGround: false,
-    stroke: Cesium.Color.TRANSPARENT,
-    fill: Cesium.Color.WHITE,
-    strokeWidth: 0,
-  });
   state.townDataSource = await Cesium.GeoJsonDataSource.load(state.geojson.towns, {
     clampToGround: false,
     stroke: Cesium.Color.fromCssColorString("rgba(232,244,255,0.34)"),
@@ -747,19 +743,10 @@ async function loadGeoJsonLayers() {
     },
   );
 
-  state.map.dataSources.add(state.townUnderlayDataSource);
   state.map.dataSources.add(state.townDataSource);
   state.map.dataSources.add(state.countyDataSource);
   state.map.dataSources.add(state.townOutlineDataSource);
   state.map.dataSources.add(state.countyOutlineDataSource);
-
-  state.townUnderlayDataSource.entities.values.forEach((entity) => {
-    if (!entity.polygon) return;
-    entity.polygon.material = Cesium.Color.WHITE;
-    entity.polygon.outline = false;
-    entity.polygon.height = UNDERLAY_HEIGHT_METERS;
-    entity.polygon.extrudedHeight = UNDERLAY_HEIGHT_METERS;
-  });
 
   state.townDataSource.entities.values.forEach((entity) => {
     const code = entity.properties?.code?.getValue?.();
@@ -780,6 +767,7 @@ async function loadGeoJsonLayers() {
 
   state.townOutlineDataSource.entities.values.forEach((entity) => {
     if (!entity.polyline) return;
+    entity.polyline.show = false;
     entity.polyline.clampToGround = false;
     entity.polyline.width = OUTLINE_STYLE.town.widthMax;
     entity.polyline.material = Cesium.Color.fromCssColorString(OUTLINE_STYLE.town.color);
@@ -789,6 +777,7 @@ async function loadGeoJsonLayers() {
 
   state.countyOutlineDataSource.entities.values.forEach((entity) => {
     if (!entity.polyline) return;
+    entity.polyline.show = false;
     entity.polyline.clampToGround = false;
     entity.polyline.width = OUTLINE_STYLE.county.widthMax;
     entity.polyline.material = Cesium.Color.fromCssColorString(OUTLINE_STYLE.county.color);
@@ -932,27 +921,14 @@ function updateMap() {
 
   state.geometry.towns.forEach((town) => {
     const entities = townEntities.get(town.code) ?? [];
-    const projectionIndex = getProjectionIndex(town.code);
-    const value = populationValues?.[projectionIndex] ?? 0;
-    const isSelectedTown = state.selectedCode && town.code === state.selectedCode;
-    const isFocusedCounty = !state.selectedCountyCode || town.code.startsWith(state.selectedCountyCode);
-    let material;
-
-    if (state.selectedCode) {
-      material = isSelectedTown
-        ? Cesium.Color.fromCssColorString(getDiscretePopulationColor(value)).withAlpha(DATA_FILL_ALPHA)
-        : Cesium.Color.fromCssColorString("rgba(245, 248, 252, 0.18)");
-    } else if (isFocusedCounty) {
-      material = Cesium.Color.fromCssColorString(getDiscretePopulationColor(value)).withAlpha(DATA_FILL_ALPHA);
-    } else {
-      material = Cesium.Color.fromCssColorString("rgba(245, 248, 252, 0.42)");
-    }
+    const material = Cesium.Color.BLACK.withAlpha(CESIUM_PICK_ALPHA);
     entities.forEach((entity) => {
       if (!entity?.polygon) return;
       entity.polygon.material = material;
     });
   });
 
+  renderSvgOverlay(populationValues);
   syncSelectedTownLabel();
 }
 
@@ -968,6 +944,128 @@ function renderLegend() {
   els.legend.innerHTML = `
     <div class="legend-ramp legend-discrete-ramp">${steps}</div>
     <div class="legend-range legend-breaks">${labels}</div>
+  `;
+}
+
+function scheduleSvgOverlayRender() {
+  if (state.svgOverlayFrame) return;
+  state.svgOverlayFrame = window.requestAnimationFrame(() => {
+    state.svgOverlayFrame = null;
+    renderSvgOverlay();
+  });
+}
+
+function renderSvgOverlay(populationValues = getCurrentPopulationMap()) {
+  if (!state.map || !els.mapSvg || !state.geojson?.towns) return;
+  const canvas = state.map.scene?.canvas;
+  const canvasRect = canvas?.getBoundingClientRect?.();
+  const stageRect = els.mapStage.getBoundingClientRect();
+  const width = Math.max(1, canvasRect?.width ?? els.mapStage.clientWidth);
+  const height = Math.max(1, canvasRect?.height ?? els.mapStage.clientHeight);
+  els.mapSvg.style.left = `${(canvasRect?.left ?? stageRect.left) - stageRect.left}px`;
+  els.mapSvg.style.top = `${(canvasRect?.top ?? stageRect.top) - stageRect.top}px`;
+  els.mapSvg.style.width = `${width}px`;
+  els.mapSvg.style.height = `${height}px`;
+  els.mapSvg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+
+  const underlayParts = [];
+  const townParts = [];
+  const countyParts = [];
+  const selectedCode = state.selectedCode;
+  const selectedCountyCode = state.selectedCountyCode;
+
+  state.geojson.towns.features.forEach((feature) => {
+    const code = feature.properties?.code;
+    if (!code) return;
+    const isSelectedTown = selectedCode && code === selectedCode;
+    const isFocusedCounty = !selectedCountyCode || code.startsWith(selectedCountyCode);
+    const shouldShowUnderlay = selectedCode ? isSelectedTown : true;
+    const shouldShowData = selectedCode ? isSelectedTown : isFocusedCounty;
+    if (!shouldShowUnderlay && !shouldShowData) return;
+
+    const path = geoJsonGeometryToSvgPath(feature.geometry);
+    if (!path) return;
+
+    if (shouldShowUnderlay) {
+      underlayParts.push(`<path class="town-underlay-path" d="${path}"></path>`);
+    }
+
+    if (shouldShowData) {
+      const value = populationValues?.[getProjectionIndex(code)] ?? 0;
+      const fill = getDiscretePopulationColor(value);
+      const selectedClass = isSelectedTown ? " selected" : "";
+      townParts.push(`<path class="town-path${selectedClass}" d="${path}" fill="${fill}"></path>`);
+    }
+  });
+
+  if (!selectedCode) {
+    state.geojson.counties.features.forEach((feature) => {
+      const path = geoJsonGeometryToSvgPath(feature.geometry);
+      if (!path) return;
+      countyParts.push(`<path class="county-path" d="${path}"></path>`);
+    });
+  }
+
+  els.townLayer.innerHTML = underlayParts.join("") + townParts.join("");
+  els.countyLayer.innerHTML = countyParts.join("");
+  els.insetLayer.innerHTML = renderSelectedTownSvgLabel(populationValues);
+}
+
+function geoJsonGeometryToSvgPath(geometry) {
+  if (!geometry?.coordinates) return "";
+  const polygons = geometry.type === "Polygon"
+    ? [geometry.coordinates]
+    : geometry.type === "MultiPolygon"
+      ? geometry.coordinates
+      : [];
+
+  return polygons
+    .map((polygon) => polygon.map((ring) => ringToSvgPath(ring)).join(""))
+    .join("");
+}
+
+function ringToSvgPath(ring) {
+  const points = ring
+    .map((position) => projectLonLatToScreen(position[0], position[1]))
+    .filter(Boolean);
+  if (points.length < 2) return "";
+  const [first, ...rest] = points;
+  return `M${formatSvgCoord(first.x)},${formatSvgCoord(first.y)}${rest.map((point) => `L${formatSvgCoord(point.x)},${formatSvgCoord(point.y)}`).join("")}Z`;
+}
+
+function projectLonLatToScreen(lon, lat) {
+  const position = Cesium.Cartesian3.fromDegrees(lon, lat);
+  const point = Cesium.SceneTransforms.wgs84ToWindowCoordinates
+    ? Cesium.SceneTransforms.wgs84ToWindowCoordinates(state.map.scene, position)
+    : Cesium.SceneTransforms.worldToWindowCoordinates(state.map.scene, position);
+  if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
+  const canvas = state.map.scene?.canvas;
+  const scaleX = canvas?.clientWidth && canvas.width ? canvas.clientWidth / canvas.width : 1;
+  const scaleY = canvas?.clientHeight && canvas.height ? canvas.clientHeight / canvas.height : 1;
+  return {
+    x: point.x * scaleX,
+    y: point.y * scaleY,
+  };
+}
+
+function formatSvgCoord(value) {
+  return Number(value.toFixed(4)).toString();
+}
+
+function renderSelectedTownSvgLabel(populationValues) {
+  const selectedTown = getSelectedTown();
+  const center = selectedTown ? state.townCenters?.get(selectedTown.code) : null;
+  if (!selectedTown || !center || getZoomInterpolation() < 0.45) return "";
+  const point = projectLonLatToScreen(center.lon, center.lat);
+  if (!point) return "";
+  const value = populationValues?.[getProjectionIndex(selectedTown.code)] ?? 0;
+  const x = formatSvgCoord(point.x);
+  const y = formatSvgCoord(point.y);
+  return `
+    <text class="selected-town-svg-label" x="${x}" y="${y}">
+      <tspan x="${x}" dy="-0.35em">${selectedTown.town}</tspan>
+      <tspan x="${x}" dy="1.15em">${state.year}年，${Math.round(value).toLocaleString()}人</tspan>
+    </text>
   `;
 }
 
@@ -1034,52 +1132,18 @@ function zoomToSelectedTown() {
 function syncOutlineStyles() {
   if (!state.map) return;
   const zoomT = getZoomInterpolation();
-  const townWidth = lerp(OUTLINE_STYLE.town.widthMin, OUTLINE_STYLE.town.widthMax, zoomT);
-  const countyWidth = lerp(OUTLINE_STYLE.county.widthMin, OUTLINE_STYLE.county.widthMax, zoomT);
 
   state.townOutlineDataSource?.entities?.values?.forEach((entity) => {
-    const code = entity.properties?.code?.getValue?.();
     if (!entity.polyline) return;
-    const isSelected = code && code === state.selectedCode;
-    const materialKey = isSelected ? "selected-town" : "town";
-    const material = isSelected
-      ? OUTLINE_STYLE.selected.color
-      : Cesium.Color.fromCssColorString(OUTLINE_STYLE.town.color);
-    setPolylineStyle(entity, {
-      width: isSelected ? townWidth + OUTLINE_STYLE.selected.widthBoost : townWidth,
-      material,
-      materialKey,
-      show: true,
-    });
+    entity.polyline.show = false;
   });
 
   state.countyOutlineDataSource?.entities?.values?.forEach((entity) => {
     if (!entity.polyline) return;
-    setPolylineStyle(entity, {
-      width: countyWidth,
-      material: Cesium.Color.fromCssColorString(OUTLINE_STYLE.county.color),
-      materialKey: "county",
-      show: !state.selectedCode,
-    });
+    entity.polyline.show = false;
   });
 
   syncSelectedTownLabel(zoomT);
-}
-
-function setPolylineStyle(entity, { width, material, materialKey, show }) {
-  if (entity._outlineShow !== show) {
-    entity.polyline.show = show;
-    entity._outlineShow = show;
-  }
-  if (!Number.isFinite(entity._outlineWidth) || Math.abs(entity._outlineWidth - width) > 0.03) {
-    entity.polyline.width = width;
-    entity._outlineWidth = width;
-  }
-  if (entity._outlineMaterialKey !== materialKey) {
-    entity.polyline.material = material;
-    entity.polyline.depthFailMaterial = material;
-    entity._outlineMaterialKey = materialKey;
-  }
 }
 
 function getZoomInterpolation() {
@@ -1097,16 +1161,7 @@ function lerp(min, max, t) {
 function syncSelectedTownLabel(zoomT = getZoomInterpolation()) {
   const label = state.selectedTownLabelEntity?.label;
   if (!label || !state.selectedTownLabelEntity) return;
-  const selectedTown = getSelectedTown();
-  const center = selectedTown ? state.townCenters?.get(selectedTown.code) : null;
-  const shouldShow = Boolean(selectedTown && center && zoomT >= 0.45);
-
-  label.show = shouldShow;
-  if (!shouldShow) return;
-
-  const value = getCurrentPopulationMap()?.[getProjectionIndex(selectedTown.code)] ?? 0;
-  state.selectedTownLabelEntity.position = Cesium.Cartesian3.fromDegrees(center.lon, center.lat);
-  label.text = `${selectedTown.town}\n${state.year}年，${Math.round(value).toLocaleString()}人`;
+  label.show = false;
 }
 
 function updateChart() {
